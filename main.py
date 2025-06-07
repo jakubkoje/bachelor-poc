@@ -9,6 +9,8 @@ from fastapi.templating import Jinja2Templates
 import uvicorn
 from typing import Optional
 import json
+import requests
+from urllib.parse import urlparse
 from gliner import GLiNER
 
 # Import lantner
@@ -103,7 +105,7 @@ HTML_TEMPLATE = """
             resize: vertical;
             box-sizing: border-box;
         }
-        textarea:focus {
+        textarea:focus, input[type="url"]:focus {
             outline: none;
             border-color: #007bff;
         }
@@ -176,11 +178,12 @@ HTML_TEMPLATE = """
         <div class="description">
             <p><strong>Movie Data Extraction from HTML</strong></p>
             <p>This tool specializes in extracting movie-related entities from HTML content. It uses a fine-tuned GLiNER 2.1 multilang model that was trained using automated labeling with GPT-4.1-nano to identify and extract movie information such as titles, years, runtime, ratings, genres, directors, cast, and plot details.</p>
+            <p><strong>How to use:</strong> Enter a URL to a webpage containing movie information (e.g., IMDB, CSFD, etc.) and the tool will fetch the HTML and extract movie entities.</p>
         </div>
         <form id="inputForm">
             <div class="form-group">
-                <label for="userInput">Enter your text for entity extraction:</label>
-                <textarea id="userInput" name="userInput" placeholder="Type some text here for entity extraction..." required></textarea>
+                <label for="urlInput">Enter URL for movie data extraction:</label>
+                <input type="url" id="urlInput" name="urlInput" placeholder="https://example.com/movie-page" required style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 5px; font-size: 16px; transition: border-color 0.3s; font-family: inherit; box-sizing: border-box;">
             </div>
             
             <div class="entities-section">
@@ -210,7 +213,7 @@ HTML_TEMPLATE = """
         document.getElementById('inputForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
-            const input = document.getElementById('userInput').value;
+            const urlInput = document.getElementById('urlInput').value;
             const entityLabels = document.getElementById('entityLabels').value;
             const submitBtn = document.getElementById('submitBtn');
             const loading = document.getElementById('loading');
@@ -224,7 +227,7 @@ HTML_TEMPLATE = """
             
             try {
                 const formData = new FormData();
-                formData.append('user_input', input);
+                formData.append('url', urlInput);
                 formData.append('entity_labels', entityLabels);
                 
                 const response = await fetch('/extract_entities', {
@@ -262,9 +265,34 @@ async def index():
     return HTMLResponse(content=HTML_TEMPLATE)
 
 
+def fetch_html_from_url(url: str) -> str:
+    """Fetch HTML content from a URL"""
+    try:
+        # Validate URL
+        parsed_url = urlparse(url)
+        if not parsed_url.scheme or not parsed_url.netloc:
+            raise ValueError("Invalid URL format")
+        
+        # Set headers to mimic a browser request
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        
+        # Fetch the HTML content
+        response = requests.get(url, headers=headers, timeout=30)
+        response.raise_for_status()  # Raise an exception for bad status codes
+        
+        return response.text
+        
+    except requests.exceptions.RequestException as e:
+        raise Exception(f"Failed to fetch URL: {str(e)}")
+    except Exception as e:
+        raise Exception(f"Error processing URL: {str(e)}")
+
+
 @app.post("/extract_entities")
-async def extract_entities(user_input: str = Form(...), entity_labels: str = Form(...)):
-    """Extract named entities from user input using lantner"""
+async def extract_entities(url: str = Form(...), entity_labels: str = Form(...)):
+    """Extract named entities from HTML content fetched from URL using lantner"""
     try:
         # Parse entity labels from textarea input
         labels = [
@@ -277,11 +305,16 @@ async def extract_entities(user_input: str = Form(...), entity_labels: str = For
             labels = ["person", "organization", "location"]  # Default labels
 
         try:
-            # Preprocess the input text first
-            print(f"Preprocessing input text: {user_input[:100]}...")
-            preprocessed_texts = ner_pipeline.preprocess(data_source=[user_input])
+            # Fetch HTML content from URL
+            print(f"Fetching HTML from URL: {url}")
+            html_content = fetch_html_from_url(url)
+            print(f"Fetched HTML content length: {len(html_content)}")
+            
+            # Preprocess the HTML content
+            print(f"Preprocessing HTML content: {html_content[:100]}...")
+            preprocessed_texts = ner_pipeline.preprocess(data_source=[html_content])
             preprocessed_text = (
-                preprocessed_texts[0] if preprocessed_texts else user_input
+                preprocessed_texts[0] if preprocessed_texts else html_content
             )
 
             # Use the pre-trained model for inference (no retraining needed)
@@ -303,27 +336,28 @@ async def extract_entities(user_input: str = Form(...), entity_labels: str = For
                     )
 
             response_data = {
+                "url": url,
                 "requested_labels": labels,
                 "extracted_entities": extracted_entities,
                 "entity_count": len(extracted_entities),
                 "text_stats": {
-                    "original_length": len(user_input),
+                    "html_length": len(html_content),
                     "preprocessed_length": len(preprocessed_text),
-                    "original_word_count": len(user_input.split()),
+                    "html_word_count": len(html_content.split()),
                     "preprocessed_word_count": len(preprocessed_text.split()),
                     "sentence_count": len(
                         [s for s in preprocessed_text.split(".") if s.strip()]
                     ),
                 },
                 "status": "success",
-                "message": f"Extracted {len(extracted_entities)} entities using lantner multilang model with preprocessing",
+                "message": f"Extracted {len(extracted_entities)} entities from {url} using lantner multilang model with preprocessing",
                 "ner_method": "lantner_multilang_with_preprocessing",
             }
 
         except Exception as e:
             response_data = {
                 "error": "Entity extraction failed",
-                "original_input": user_input,
+                "url": url,
                 "requested_labels": labels,
                 "details": str(e),
                 "status": "extraction_failed",
