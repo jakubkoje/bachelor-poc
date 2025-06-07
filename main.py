@@ -70,11 +70,11 @@ HTML_TEMPLATE = """
             margin-bottom: 20px;
         }
         .description {
-            background-color: #e8f4f8;
+            background-color: #fff5f0;
             padding: 20px;
             border-radius: 8px;
             margin-bottom: 30px;
-            border-left: 4px solid #007bff;
+            border-left: 4px solid #ff8000;
         }
         .description p {
             margin: 0 0 10px 0;
@@ -107,16 +107,16 @@ HTML_TEMPLATE = """
         }
         textarea:focus, input[type="url"]:focus {
             outline: none;
-            border-color: #007bff;
+            border-color: #ff8000;
         }
         .entities-section {
             margin-bottom: 20px;
             padding: 15px;
-            background-color: #e9f4ff;
+            background-color: #fff8f0;
             border-radius: 5px;
         }
         button {
-            background-color: #007bff;
+            background-color: #ff8000;
             color: white;
             padding: 12px 30px;
             border: none;
@@ -127,7 +127,7 @@ HTML_TEMPLATE = """
             width: 100%;
         }
         button:hover {
-            background-color: #0056b3;
+            background-color: #e6700d;
         }
         button:disabled {
             background-color: #ccc;
@@ -137,7 +137,7 @@ HTML_TEMPLATE = """
             margin-top: 30px;
             padding: 20px;
             background-color: #f8f9fa;
-            border-left: 4px solid #007bff;
+            border-left: 4px solid #ff8000;
             border-radius: 5px;
             display: none;
         }
@@ -159,7 +159,7 @@ HTML_TEMPLATE = """
         }
         .spinner {
             border: 3px solid #f3f3f3;
-            border-top: 3px solid #007bff;
+            border-top: 3px solid #ff8000;
             border-radius: 50%;
             width: 30px;
             height: 30px;
